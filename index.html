@@ -289,6 +289,10 @@ tr.drag-over-bottom td {border-bottom: 2px solid var(--blue) !important}
       <h3 style="font-size:14px;font-weight:700;color:#F0F2F8;margin:0">Personennamen anpassen</h3>
     </div>
     <div id="names-inputs" style="display:flex;flex-direction:column;gap:10px"></div>
+    <button type="button" onclick="addPersonInput()" style="margin-top:12px;display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:7px;border:1px dashed #344060;background:transparent;color:#9BAACF;cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;width:100%;justify-content:center;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Person hinzufügen
+    </button>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
       <button onclick="closeNamesModal()" style="padding:7px 14px;background:#161C2C;color:#9BAACF;border:1px solid #344060;border-radius:7px;cursor:pointer;font-size:12px">Abbrechen</button>
       <button onclick="saveNames()" style="padding:7px 18px;background:#1D4ED8;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">Speichern</button>
@@ -578,8 +582,8 @@ function renderTabs(){
   D.persons.forEach((p,i)=>{
     const b=document.createElement('button');
     b.className='tab-btn'+(curP===i?' active':'');
-    if(curP===i) b.style.background=PD[i];
-    b.innerHTML=`<span class="tab-dot" style="background:${PC[i]}"></span>${p.name}`;
+    if(curP===i) b.style.background=PD[i % PD.length];
+    b.innerHTML=`<span class="tab-dot" style="background:${PC[i % PC.length]}"></span>${p.name}`;
     b.onclick=()=>{curP=i;render()};
     el.appendChild(b);
   });
@@ -604,7 +608,7 @@ function renderPersonBar(){
   if(!p.tasks) p.tasks = [];
   if(!p.ms) p.ms = [];
   const ini=p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-  el.innerHTML=`<div class="p-avatar" style="background:${PD[curP]};color:${PC[curP]}">${ini}</div>
+  el.innerHTML=`<div class="p-avatar" style="background:${PD[curP % PD.length]};color:${PC[curP % PC.length]}">${ini}</div>
     <input class="p-name" value="${esc(p.name)}" oninput="D.persons[${curP}].name=this.value;save();renderTabs();" title="Namen bearbeiten">
     <div class="p-stats">
       <span class="p-stat"><strong>${(p.tasks||[]).filter(t=>t.aufg).length}</strong> Aufgaben</span>
@@ -688,7 +692,7 @@ function buildLeftHead(cols){
 
 // ─── Person view ────────────────────────────────────────────────
 function renderPerson(pidx){
-  const p=D.persons[pidx], bc=PC[pidx];
+  const p=D.persons[pidx], bc=PC[pidx % PC.length];
   if(!p) return;
   if(!p.tasks) p.tasks = [];
   if(!p.tasks.length) p.tasks.push(mkT());
@@ -756,7 +760,7 @@ function buildRow(t, pidx, tidx, bc, isMil, lCols){
 
   lt.draggable = true;
   lt.addEventListener('dragstart', e => {
-    if (!e.target.closest('.drag-handle')) {
+    if (!lastMouseDownTarget || !lastMouseDownTarget.closest('.drag-handle')) {
       e.preventDefault();
       return;
     }
@@ -948,13 +952,13 @@ function renderMaster(){
     // Person section header
     const lph=document.createElement('tr'); lph.className='sec-person';
     const lptd=document.createElement('td'); lptd.colSpan=lCols.length;
-    lptd.style.background=PD[pidx]+'BB'; lptd.style.borderLeft=`3px solid ${PC[pidx]}`;
+    lptd.style.background=PD[pidx % PD.length]+'BB'; lptd.style.borderLeft=`3px solid ${PC[pidx % PC.length]}`;
     lptd.textContent=`${p.name}  ·  ${filled.length} Aufgaben  ·  ${filledMs.length} Meilensteine`;
     lph.appendChild(lptd); lBody.appendChild(lph);
 
     const rph=document.createElement('tr'); rph.className='sec-person';
     const rptd=document.createElement('td'); rptd.colSpan=DAYS.length;
-    rptd.style.background=PD[pidx]+'BB';
+    rptd.style.background=PD[pidx % PD.length]+'BB';
     rph.appendChild(rptd); rBody.appendChild(rph);
 
     const addMasterRows=(tasks,isMil)=>{
@@ -993,7 +997,7 @@ function renderMaster(){
 }
 
 function buildMasterRow(t,pidx,p,ti,isMil){
-  const bc=PC[pidx]; const cat=CATS.find(c=>c.n===t.kat);
+  const bc=PC[pidx % PC.length]; const cat=CATS.find(c=>c.n===t.kat);
 
   const lt=document.createElement('tr'); lt.className='dr';
   const rt=document.createElement('tr'); rt.className='dr';
@@ -1071,7 +1075,7 @@ function renderFooter(){
     return;
   }
 
-  const p=D.persons[curP]; const bc=PC[curP];
+  const p=D.persons[curP]; const bc=PC[curP % PC.length];
 
   const ab=document.createElement('button'); ab.className='add-btn';
   ab.innerHTML='<svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="2"><line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg> Aufgabe';
@@ -1103,7 +1107,7 @@ function openModal(pidx,tidx,isMil){
   modalCtx={pidx,tidx,isMil};
   const t=(isMil?D.persons[pidx].ms:D.persons[pidx].tasks)[tidx];
   document.getElementById('m-title').innerHTML=
-    `<span style="color:${PC[pidx]}">●</span> ${isMil?'Meilenstein':'Aufgabe'} bearbeiten`;
+    `<span style="color:${PC[pidx % PC.length]}">●</span> ${isMil?'Meilenstein':'Aufgabe'} bearbeiten`;
 
   const ks=document.getElementById('m-kat');
   ks.innerHTML='<option value="">— Keine Kategorie —</option>';
@@ -1309,39 +1313,119 @@ function checkBackupReminder(){
 
 // Override exportData to track last backup time
 const _origExport = exportData;
-// Already defined above, patch save time:
+
+let lastMouseDownTarget = null;
+document.addEventListener('mousedown', e => {
+  lastMouseDownTarget = e.target;
+});
 
 // ─── Names Modal ─────────────────────────────────────────────────
+function createNameInputRow(name, index, id) {
+  const row = document.createElement('div');
+  row.className = 'name-input-row';
+  if (id !== undefined) row.dataset.id = id;
+  row.style.cssText = 'display:flex;align-items:center;gap:10px';
+  
+  const dot = document.createElement('span');
+  const color = PC[index % PC.length];
+  dot.style.cssText = `width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0`;
+  
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = name;
+  inp.placeholder = 'Name eingeben...';
+  inp.className = 'name-input-field';
+  inp.style.cssText = 'flex:1;padding:7px 10px;background:#161C2C;border:1px solid #344060;border-radius:7px;color:#F0F2F8;font:inherit;font-size:13px;outline:none';
+  inp.addEventListener('focus', () => inp.style.borderColor = '#3B82F6');
+  inp.addEventListener('blur',  () => inp.style.borderColor = '#344060');
+  
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.innerHTML = '✕';
+  delBtn.style.cssText = 'background:transparent;border:none;color:#FCA5A5;cursor:pointer;padding:4px 8px;font-size:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;line-height:1;';
+  delBtn.title = 'Person löschen';
+  delBtn.addEventListener('mouseover', () => delBtn.style.background = '#450A0A');
+  delBtn.addEventListener('mouseout', () => delBtn.style.background = 'transparent');
+  delBtn.addEventListener('click', () => {
+    row.remove();
+    updateNameRowDots();
+  });
+  
+  row.appendChild(dot);
+  row.appendChild(inp);
+  row.appendChild(delBtn);
+  return row;
+}
+
+function updateNameRowDots() {
+  const container = document.getElementById('names-inputs');
+  const rows = container.querySelectorAll('.name-input-row');
+  rows.forEach((row, i) => {
+    const dot = row.querySelector('span');
+    if (dot) {
+      dot.style.background = PC[i % PC.length];
+    }
+  });
+}
+
+function addPersonInput() {
+  const container = document.getElementById('names-inputs');
+  const index = container.querySelectorAll('.name-input-row').length;
+  const row = createNameInputRow('', index);
+  container.appendChild(row);
+  const inp = row.querySelector('.name-input-field');
+  if (inp) inp.focus();
+}
+
 function openNamesModal(){
   const container = document.getElementById('names-inputs');
   container.innerHTML = '';
   D.persons.forEach((p, i) => {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px';
-    const dot = document.createElement('span');
-    dot.style.cssText = `width:10px;height:10px;border-radius:50%;background:${PC[i]};flex-shrink:0`;
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.value = p.name;
-    inp.id = 'nm-' + i;
-    inp.style.cssText = 'flex:1;padding:7px 10px;background:#161C2C;border:1px solid #344060;border-radius:7px;color:#F0F2F8;font:inherit;font-size:13px;outline:none';
-    inp.addEventListener('focus', () => inp.style.borderColor = '#3B82F6');
-    inp.addEventListener('blur',  () => inp.style.borderColor = '#344060');
-    row.appendChild(dot);
-    row.appendChild(inp);
+    const row = createNameInputRow(p.name, i, p.id);
     container.appendChild(row);
   });
   document.getElementById('names-modal-bg').style.display = 'flex';
-  setTimeout(() => document.getElementById('nm-0').focus(), 60);
+  const firstInp = container.querySelector('.name-input-field');
+  if(firstInp) setTimeout(() => firstInp.focus(), 60);
 }
+
 function closeNamesModal(){
   document.getElementById('names-modal-bg').style.display = 'none';
 }
+
 function saveNames(){
-  D.persons.forEach((p, i) => {
-    const inp = document.getElementById('nm-' + i);
-    if(inp && inp.value.trim()) p.name = inp.value.trim();
+  const container = document.getElementById('names-inputs');
+  const rows = container.querySelectorAll('.name-input-row');
+  const updatedPersons = [];
+  
+  rows.forEach((row, i) => {
+    const inp = row.querySelector('.name-input-field');
+    const name = inp ? inp.value.trim() : '';
+    if (name) {
+      const idVal = row.dataset.id;
+      if (idVal !== undefined) {
+        const existing = D.persons.find(p => p.id == idVal);
+        if (existing) {
+          existing.name = name;
+          updatedPersons.push(existing);
+        }
+      } else {
+        const nextId = D.persons.length ? Math.max(...D.persons.map(p => p.id)) + 1 : 0;
+        updatedPersons.push({
+          id: nextId,
+          name: name,
+          tasks: [mkT()],
+          ms: [mkT()]
+        });
+      }
+    }
   });
+  
+  D.persons = updatedPersons;
+  if (curP >= D.persons.length && curP !== 6) {
+    curP = Math.max(0, D.persons.length - 1);
+  }
+  
   save();
   closeNamesModal();
   render();
