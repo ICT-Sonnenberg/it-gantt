@@ -230,10 +230,19 @@ tr.dr:hover td.dc{filter:brightness(1.08)}
   display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;
   background:var(--surface);border:1px solid var(--border);font-size:11px;font-weight:600;
   color:var(--muted);transition:all .3s;cursor:pointer;flex-shrink:0;
-" onclick="openFirebaseConfig()" title="Firebase Sync Einstellungen">
+" title="Firebase Realtime Sync">
   <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:#4B5563;flex-shrink:0"></span>
   <span id="sync-label">Nicht verbunden</span>
 </div>
+<button onclick="openNamesModal()" style="
+  display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:7px;
+  border:1px solid var(--border2);background:var(--surface);color:var(--muted);
+  cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;flex-shrink:0;
+  margin-left:6px;
+" title="Personennamen anpassen">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+  Namen
+</button>
 <div class="tabs" id="tabs"></div>
   </div>
   <div id="person-bar"></div>
@@ -265,6 +274,20 @@ tr.dr:hover td.dc{filter:brightness(1.08)}
   <div id="tt-name" style="font-weight:700;font-size:13px;margin-bottom:4px"></div>
   <div id="tt-kat" style="font-size:11px;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:6px"></div>
   <div style="display:flex;flex-direction:column;gap:3px" id="tt-body"></div>
+</div>
+
+<div id="names-modal-bg" onclick="if(event.target===this)closeNamesModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:500;align-items:center;justify-content:center">
+  <div style="background:#0F1117;border:1px solid #344060;border-radius:14px;padding:24px;width:380px;max-width:94vw">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      <h3 style="font-size:14px;font-weight:700;color:#F0F2F8;margin:0">Personennamen anpassen</h3>
+    </div>
+    <div id="names-inputs" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+      <button onclick="closeNamesModal()" style="padding:7px 14px;background:#161C2C;color:#9BAACF;border:1px solid #344060;border-radius:7px;cursor:pointer;font-size:12px">Abbrechen</button>
+      <button onclick="saveNames()" style="padding:7px 18px;background:#1D4ED8;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">Speichern</button>
+    </div>
+  </div>
 </div>
 
 <div id="fb-modal-bg" onclick="if(event.target===this)closeFbModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:500;align-items:center;justify-content:center">
@@ -1037,7 +1060,7 @@ function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').repla
 
 // ─── Keyboard ───────────────────────────────────────────────────
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') closeModal();
+  if(e.key==='Escape'){ closeModal(); closeFbModal(); closeNamesModal(); }
   if(e.key==='Enter'&&document.getElementById('modal-bg').classList.contains('open')){
     e.preventDefault(); saveModal();
   }
@@ -1186,20 +1209,59 @@ function checkBackupReminder(){
 const _origExport = exportData;
 // Already defined above, patch save time:
 
+// ─── Names Modal ─────────────────────────────────────────────────
+function openNamesModal(){
+  const container = document.getElementById('names-inputs');
+  container.innerHTML = '';
+  D.persons.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px';
+    const dot = document.createElement('span');
+    dot.style.cssText = `width:10px;height:10px;border-radius:50%;background:${PC[i]};flex-shrink:0`;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = p.name;
+    inp.id = 'nm-' + i;
+    inp.style.cssText = 'flex:1;padding:7px 10px;background:#161C2C;border:1px solid #344060;border-radius:7px;color:#F0F2F8;font:inherit;font-size:13px;outline:none';
+    inp.addEventListener('focus', () => inp.style.borderColor = '#3B82F6');
+    inp.addEventListener('blur',  () => inp.style.borderColor = '#344060');
+    row.appendChild(dot);
+    row.appendChild(inp);
+    container.appendChild(row);
+  });
+  document.getElementById('names-modal-bg').style.display = 'flex';
+  setTimeout(() => document.getElementById('nm-0').focus(), 60);
+}
+function closeNamesModal(){
+  document.getElementById('names-modal-bg').style.display = 'none';
+}
+function saveNames(){
+  D.persons.forEach((p, i) => {
+    const inp = document.getElementById('nm-' + i);
+    if(inp && inp.value.trim()) p.name = inp.value.trim();
+  });
+  save();
+  closeNamesModal();
+  render();
+  showToast('Namen gespeichert ✓');
+}
+
 // ─── Boot ───────────────────────────────────────────────────────
 syncScroll();
 render();
 checkBackupReminder();
 
-// Auto-connect Firebase if config saved
-const _savedCfg=JSON.parse(localStorage.getItem(FB_CFG_KEY)||'null');
-if(_savedCfg && _savedCfg.apiKey){
-  setSyncStatus('connecting');
-  // Small delay so UI renders first
-  setTimeout(()=>initFirebase(_savedCfg, (ok,err)=>{
-    if(!ok){ setSyncStatus('error'); showToast('Firebase: '+err, true); }
-  }), 500);
-}
+// ─── Hardcoded Firebase Config ──────────────────────────────────
+// Immer verbunden – kein Setup nötig
+const HARDCODED_FB = {
+  apiKey:    "AIzaSyBkuitlI-eM90Y3X9MC8z9A5pUoHQtvllg",
+  dbUrl:     "https://it-guntt-default-rtdb.europe-west1.firebasedatabase.app",
+  projId:    "it-guntt"
+};
+setSyncStatus('connecting');
+setTimeout(()=>initFirebase(HARDCODED_FB, (ok,err)=>{
+  if(!ok){ setSyncStatus('error'); showToast('Firebase Fehler: '+err, true); }
+}), 400);
 
 // Scroll right panel to today
 requestAnimationFrame(()=>{
