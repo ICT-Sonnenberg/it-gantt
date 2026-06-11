@@ -15,7 +15,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0F1117;color:#E8EAF
   --blue:#60A5FA;--blue-dim:#1E3A6E;
   --today:#F87171;
   --cell:32px;--hdr:22px;
-  --left-w:785px;
+  --left-w:810px;
 }
 
 
@@ -124,6 +124,7 @@ tr.dr:hover td.lc{filter:brightness(1.1)}
 tr.dr:hover td.dc{filter:brightness(1.08)}
 
 /* Col widths */
+.w-drag  {min-width:25px;max-width:25px;width:25px}
 .w-kat  {min-width:130px;max-width:130px;width:130px}
 .w-aufg {min-width:210px;max-width:210px;width:210px}
 .w-start{min-width:90px;max-width:90px;width:90px}
@@ -195,6 +196,11 @@ tr.dr:hover td.dc{filter:brightness(1.08)}
 .bsec{padding:7px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border2);border-radius:7px;cursor:pointer;font-size:12px}
 .bdel{padding:7px 12px;background:#3A1010;color:#FCA5A5;border:1px solid #7A1414;border-radius:7px;cursor:pointer;font-size:12px;margin-right:auto}
 .bdel:hover{background:#5A1414}
+.drag-handle {cursor: grab}
+.drag-handle:active {cursor: grabbing}
+.dr.dragging {opacity: 0.5}
+tr.drag-over-top td {border-top: 2px solid var(--blue) !important}
+tr.drag-over-bottom td {border-bottom: 2px solid var(--blue) !important}
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -508,6 +514,7 @@ function initFirebase(cfg, cb){
       fbListener = fbRef.on('value', snap=>{
         const remote = snap.val();
         if(!remote || !remote.persons) return;
+        if(JSON.stringify(D) === JSON.stringify(remote)) return;
         isSyncing=true;
         D = remote;
         sanitizeData();
@@ -552,7 +559,7 @@ function closeFbModal(){
 }
 function mkT(){return{id:(Date.now()*Math.random())|0,kat:'',aufg:'',start:'',end:'',stat:'Offen',fort:0}}
 
-let curP=0, modalCtx=null;
+let curP=0, modalCtx=null, draggedItem=null;
 
 // ═══ SYNC SCROLL ════════════════════════════════════════════════
 // Left and right panels share vertical scroll
@@ -689,6 +696,7 @@ function renderPerson(pidx){
   if(!p.ms.length)    p.ms.push(mkT());
 
   const lCols=[
+    {label:'',w:'w-drag'},
     {label:'Kategorie',w:'w-kat'},{label:'Aufgabe',w:'w-aufg'},
     {label:'Start',w:'w-start'},{label:'Ende',w:'w-end'},
     {label:'Dauer',w:'w-dur'},{label:'Status',w:'w-stat'},
@@ -736,6 +744,77 @@ function buildRow(t, pidx, tidx, bc, isMil, lCols){
   function lc(cls){
     const td=document.createElement('td'); td.className='lc '+cls; return td;
   }
+
+  // 0. Drag Handle
+  const dragTd = lc('w-drag');
+  dragTd.className += ' drag-handle';
+  const dragSvg = document.createElement('div');
+  dragSvg.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--dim);opacity:0.4;';
+  dragSvg.innerHTML = `<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="2" cy="2" r="1" fill="currentColor"/><circle cx="2" cy="7" r="1" fill="currentColor"/><circle cx="2" cy="12" r="1" fill="currentColor"/><circle cx="8" cy="2" r="1" fill="currentColor"/><circle cx="8" cy="7" r="1" fill="currentColor"/><circle cx="8" cy="12" r="1" fill="currentColor"/></svg>`;
+  dragTd.appendChild(dragSvg);
+  lt.appendChild(dragTd);
+
+  lt.draggable = true;
+  lt.addEventListener('dragstart', e => {
+    if (!e.target.closest('.drag-handle')) {
+      e.preventDefault();
+      return;
+    }
+    draggedItem = { pidx, tidx, isMil };
+    lt.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  lt.addEventListener('dragend', () => {
+    lt.classList.remove('dragging');
+    document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    draggedItem = null;
+  });
+
+  lt.addEventListener('dragover', e => {
+    if (!draggedItem || draggedItem.pidx !== pidx || draggedItem.isMil !== isMil) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    const rect = lt.getBoundingClientRect();
+    const relY = e.clientY - rect.top;
+    if (relY > rect.height / 2) {
+      lt.classList.remove('drag-over-top');
+      lt.classList.add('drag-over-bottom');
+    } else {
+      lt.classList.remove('drag-over-bottom');
+      lt.classList.add('drag-over-top');
+    }
+  });
+
+  lt.addEventListener('dragleave', () => {
+    lt.classList.remove('drag-over-top', 'drag-over-bottom');
+  });
+
+  lt.addEventListener('drop', e => {
+    if (!draggedItem || draggedItem.pidx !== pidx || draggedItem.isMil !== isMil) return;
+    e.preventDefault();
+    
+    const dropPosition = lt.classList.contains('drag-over-bottom') ? 'bottom' : 'top';
+    const arr = isMil ? D.persons[pidx].ms : D.persons[pidx].tasks;
+    const draggedIdx = draggedItem.tidx;
+    const targetIdx = tidx;
+    
+    if (draggedIdx !== targetIdx) {
+      const [item] = arr.splice(draggedIdx, 1);
+      let targetInsertIdx = targetIdx;
+      if (dropPosition === 'bottom') {
+        targetInsertIdx = draggedIdx < targetIdx ? targetIdx : targetIdx + 1;
+      } else {
+        targetInsertIdx = draggedIdx < targetIdx ? targetIdx - 1 : targetIdx;
+      }
+      arr.splice(targetInsertIdx, 0, item);
+      save();
+      render();
+    }
+  });
 
   // 1. Kategorie
   const kd=lc('w-kat');
@@ -846,6 +925,7 @@ function renderMaster(){
   const rt=document.getElementById('rt'); rt.innerHTML='';
 
   const lCols=[
+    {label:'',w:'w-drag'},
     {label:'Person',w:'w-pers'},{label:'Aufgabe',w:'w-aufg'},
     {label:'Start',w:'w-start'},{label:'Ende',w:'w-end'},
     {label:'Dauer',w:'w-dur'},{label:'Status',w:'w-stat'},
@@ -919,6 +999,10 @@ function buildMasterRow(t,pidx,p,ti,isMil){
   const rt=document.createElement('tr'); rt.className='dr';
 
   function lc(cls){ const td=document.createElement('td'); td.className='lc '+cls; return td; }
+
+  // Drag spacer
+  const dragTd = lc('w-drag');
+  lt.appendChild(dragTd);
 
   // Person
   const pd=lc('w-pers');
