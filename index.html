@@ -405,6 +405,16 @@ let D=JSON.parse(localStorage.getItem('ig26v2')||'null')||{
   ]
 };
 
+function sanitizeData(){
+  if(D && Array.isArray(D.persons)){
+    D.persons.forEach(p => {
+      if(!p.tasks) p.tasks = [];
+      if(!p.ms) p.ms = [];
+    });
+  }
+}
+sanitizeData();
+
 // ─── Firebase ────────────────────────────────────────────────────
 let fbApp=null, fbDb=null, fbRef=null, fbListener=null;
 let isSyncing=false; // prevent write-loop when remote update arrives
@@ -483,6 +493,7 @@ function initFirebase(cfg, cb){
       if(remote && remote.persons){
         // Remote has data - merge with local (remote wins for existing persons)
         D = remote;
+        sanitizeData();
         localStorage.setItem('ig26v2', JSON.stringify(D));
         render();
         showToast('Daten aus Firebase geladen ✓');
@@ -499,6 +510,7 @@ function initFirebase(cfg, cb){
         if(!remote || !remote.persons) return;
         isSyncing=true;
         D = remote;
+        sanitizeData();
         localStorage.setItem('ig26v2', JSON.stringify(D));
         render();
         isSyncing=false;
@@ -576,18 +588,21 @@ function renderPersonBar(){
   const el=document.getElementById('person-bar'); el.innerHTML='';
   if(curP===6){
     el.innerHTML=`<span style="font-size:15px;font-weight:700;color:#C4B5FD">◈ Master-Dashboard</span>
-    <div class="p-stats"><span class="p-stat"><strong>${D.persons.reduce((a,p)=>a+p.tasks.filter(t=>t.aufg).length,0)}</strong> Aufgaben</span>
-    <span class="p-stat"><strong>${D.persons.reduce((a,p)=>a+p.ms.filter(m=>m.aufg).length,0)}</strong> Meilensteine</span></div>`;
+    <div class="p-stats"><span class="p-stat"><strong>${D.persons.reduce((a,p)=>a+(p.tasks||[]).filter(t=>t.aufg).length,0)}</strong> Aufgaben</span>
+    <span class="p-stat"><strong>${D.persons.reduce((a,p)=>a+(p.ms||[]).filter(m=>m.aufg).length,0)}</strong> Meilensteine</span></div>`;
     return;
   }
   const p=D.persons[curP];
+  if(!p) return;
+  if(!p.tasks) p.tasks = [];
+  if(!p.ms) p.ms = [];
   const ini=p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
   el.innerHTML=`<div class="p-avatar" style="background:${PD[curP]};color:${PC[curP]}">${ini}</div>
     <input class="p-name" value="${esc(p.name)}" oninput="D.persons[${curP}].name=this.value;save();renderTabs();" title="Namen bearbeiten">
     <div class="p-stats">
-      <span class="p-stat"><strong>${p.tasks.filter(t=>t.aufg).length}</strong> Aufgaben</span>
-      <span class="p-stat"><strong>${p.ms.filter(m=>m.aufg).length}</strong> Meilensteine</span>
-      <span class="p-stat"><strong>${p.tasks.filter(t=>t.stat==='Abgeschlossen').length}</strong> erledigt</span>
+      <span class="p-stat"><strong>${(p.tasks||[]).filter(t=>t.aufg).length}</strong> Aufgaben</span>
+      <span class="p-stat"><strong>${(p.ms||[]).filter(m=>m.aufg).length}</strong> Meilensteine</span>
+      <span class="p-stat"><strong>${(p.tasks||[]).filter(t=>t.stat==='Abgeschlossen').length}</strong> erledigt</span>
     </div>`;
 }
 
@@ -667,7 +682,10 @@ function buildLeftHead(cols){
 // ─── Person view ────────────────────────────────────────────────
 function renderPerson(pidx){
   const p=D.persons[pidx], bc=PC[pidx];
+  if(!p) return;
+  if(!p.tasks) p.tasks = [];
   if(!p.tasks.length) p.tasks.push(mkT());
+  if(!p.ms) p.ms = [];
   if(!p.ms.length)    p.ms.push(mkT());
 
   const lCols=[
@@ -842,8 +860,8 @@ function renderMaster(){
 
   let hasAny=false;
   D.persons.forEach((p,pidx)=>{
-    const filled=p.tasks.filter(t=>t.aufg);
-    const filledMs=p.ms.filter(m=>m.aufg);
+    const filled=(p.tasks||[]).filter(t=>t.aufg);
+    const filledMs=(p.ms||[]).filter(m=>m.aufg);
     if(!filled.length&&!filledMs.length) return;
     hasAny=true;
 
@@ -1196,7 +1214,7 @@ function showToast(msg, isError=false){
 // Show backup reminder if data exists but no backup in 7 days
 function checkBackupReminder(){
   const last = localStorage.getItem('ig26-last-backup');
-  const hasTasks = D.persons.some(p => p.tasks.length > 0 || p.ms.length > 0);
+  const hasTasks = D.persons.some(p => (p.tasks || []).length > 0 || (p.ms || []).length > 0);
   if(!hasTasks) return;
   if(!last || (Date.now() - parseInt(last)) > 7*24*60*60*1000){
     setTimeout(()=>{
